@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../../found_report/models/found_report_draft.dart';
@@ -21,13 +21,13 @@ class ReportsApiException implements Exception {
 class ReportsApi {
   ReportsApi._();
 
-  /// Android emulators can't reach the host machine via `localhost` — that
-  /// address resolves to the emulator itself, so they need the special
-  /// alias `10.0.2.2`. iOS simulators, web, and desktop builds all resolve
+  /// Android can't reach the dev machine via `localhost` — on a physical
+  /// device that resolves to the device itself, so it needs the host's LAN
+  /// IP instead. iOS simulators, web, and desktop builds all resolve
   /// `localhost` to the host machine correctly.
   static String get _baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:3000';
+      return 'http://172.20.165.37:3000';
     }
     return 'http://localhost:3000';
   }
@@ -55,9 +55,6 @@ class ReportsApi {
 
     final uri = Uri.parse('$_baseUrl/reports');
     final encodedBody = jsonEncode(body);
-    // TEMP DEBUG — remove after diagnosing the submission failure.
-    debugPrint('[ReportsApi] POST $uri');
-    debugPrint('[ReportsApi] body: $encodedBody');
 
     final http.Response response;
     try {
@@ -68,20 +65,9 @@ class ReportsApi {
             body: encodedBody,
           )
           .timeout(const Duration(seconds: 10));
-    } catch (e, st) {
-      // TEMP DEBUG — remove after diagnosing the submission failure.
-      debugPrint('[ReportsApi] exception type: ${e.runtimeType}');
-      debugPrint('[ReportsApi] exception message: $e');
-      debugPrint('[ReportsApi] stack trace:\n$st');
-      // TEMP DEBUG — rethrowing the original exception (not
-      // ReportsApiException) so the real error reaches the caller while
-      // we're diagnosing. Restore the ReportsApiException wrap afterward.
-      rethrow;
+    } catch (e) {
+      throw ReportsApiException('Could not reach the server. Please try again.');
     }
-
-    // TEMP DEBUG — remove after diagnosing the submission failure.
-    debugPrint('[ReportsApi] status: ${response.statusCode}');
-    debugPrint('[ReportsApi] response body: ${response.body}');
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw ReportsApiException('Server rejected the report (${response.statusCode}).');
