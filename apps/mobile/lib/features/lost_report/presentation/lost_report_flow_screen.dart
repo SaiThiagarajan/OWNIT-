@@ -10,7 +10,7 @@ import '../../../core/widgets/report_flow_header.dart';
 import '../../../core/widgets/report_flow_sheet.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../history/presentation/history_screen.dart';
-import '../../reports/models/report.dart';
+import '../../reports/data/reports_api.dart';
 import '../../reports/models/report_store.dart';
 import '../models/lost_report_draft.dart';
 import 'steps/lost_category_step.dart';
@@ -91,37 +91,22 @@ class _LostReportFlowScreenState extends State<LostReportFlowScreen> {
       _submitting = true;
       _submitError = false;
     });
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
 
-    // Typing "fail" anywhere in the description is a deliberate, reachable
-    // way to demo the submission-error state without a real backend.
-    if (_draft.description.toLowerCase().contains('fail')) {
+    try {
+      final report = await ReportsApi.submitLostReport(_draft);
+      if (!mounted) return;
+      ReportStore.add(report);
+      setState(() {
+        _submitting = false;
+        _submitted = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _submitting = false;
         _submitError = true;
       });
-      return;
     }
-
-    ReportStore.add(
-      Report(
-        id: 'lost-${DateTime.now().microsecondsSinceEpoch}',
-        type: ReportType.lost,
-        category: _draft.category ?? 'Other',
-        description: _draft.description,
-        imageBytes: _draft.photoBytes,
-        coarseLocation: _draft.locationLabel ?? 'Unknown area',
-        dateTime: _draft.occurredAt ?? DateTime.now(),
-        status: ReportStatus.active,
-        createdAt: DateTime.now(),
-      ),
-    );
-
-    setState(() {
-      _submitting = false;
-      _submitted = true;
-    });
   }
 
   void _viewReport() {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../../found_report/models/found_report_draft.dart';
+import '../../lost_report/models/lost_report_draft.dart';
 import '../models/report.dart';
 
 /// Thrown when the backend rejects the request or the network call fails,
@@ -84,6 +85,52 @@ class ReportsApi {
       dateTime: DateTime.parse(json['dateTime'] as String),
       status: ReportStatus.active,
       safekeeping: draft.safekeeping,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  /// Submits a lost-item report and returns it as stored by the backend
+  /// (with its generated id and createdAt). Lost reports have no
+  /// safekeeping option, so that field is never sent.
+  static Future<Report> submitLostReport(LostReportDraft draft) async {
+    final body = <String, dynamic>{
+      'type': 'LOST',
+      'category': draft.category ?? 'Other',
+      'description': draft.description,
+      'location': draft.locationLabel ?? 'Unknown area',
+      'dateTime': (draft.occurredAt ?? DateTime.now()).toUtc().toIso8601String(),
+    };
+
+    final uri = Uri.parse('$_baseUrl/reports');
+    final encodedBody = jsonEncode(body);
+
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: encodedBody,
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      throw ReportsApiException('Could not reach the server. Please try again.');
+    }
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ReportsApiException('Server rejected the report (${response.statusCode}).');
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return Report(
+      id: json['id'] as String,
+      type: ReportType.lost,
+      category: json['category'] as String,
+      description: json['description'] as String,
+      imageBytes: draft.photoBytes,
+      coarseLocation: json['location'] as String,
+      dateTime: DateTime.parse(json['dateTime'] as String),
+      status: ReportStatus.active,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
